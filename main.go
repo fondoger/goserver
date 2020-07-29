@@ -4,10 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/mdp/qrterminal/v3"
 )
 
 var epoch = time.Unix(0, 0).Format(time.RFC1123)
@@ -43,22 +46,83 @@ func NoCache(h http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
+}
+
+func TryListenPort(addr string) error {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	return ln.Close()
+}
+func isFlagPassed(name string) bool {
+	found := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			found = true
+		}
+	})
+	return found
+}
+
 func main() {
 	var port int
 	var host string
 	flag.StringVar(&host, "h", "0.0.0.0", "`host` to serve on")
-	flag.IntVar(&port, "p", 80, "`port` to listen on")
+	flag.IntVar(&port, "p", -1, "`port` to listen on, defualt is 'auto'")
 	flag.Usage = func() {
-		_, _ = fmt.Fprintf(os.Stderr, "Usage: goserver [-h host] [-p port] <path>\n\nOptions:\n")
+		fmt.Fprintf(os.Stderr, "Usage: goserver [-h host] [-p port] <path>\n")
+		fmt.Fprintf(os.Stderr, "eg: \n")
+		fmt.Fprintf(os.Stderr, "    goserver ./\n")
+		fmt.Fprintf(os.Stderr, "    goserver -h 127.0.0.1 -p 8080 /path/to/folder/\n")
+		fmt.Fprintf(os.Stderr, "\nOptions:\n")
 		flag.PrintDefaults()
 	}
 	flag.Parse()
-	if flag.NArg() != 1 {
+	if flag.NArg() == 0 {
+		if flag.NFlag() != 0 {
+			fmt.Println("Did you forget to provide `path` argument?\n")
+		}
 		flag.Usage()
 		return
 	}
 	directory := flag.Arg(0)
 	http.Handle("/", NoCache(http.FileServer(http.Dir(directory))))
+	ports := []int{80, 5000, 8000, 8001}
+	if port != -1 {
+		ports = []int{port}
+	}
+	addr := ""
+	for i, p := range ports {
+		port = p
+		addr = host + ":" + strconv.Itoa(port)
+		if TryListenPort(addr) == nil {
+			break
+		}
+		fmt.Printf("port %d is not available\n", port)
+		if i == len(ports)-1 {
+			log.Fatal("port bind failed")
+		}
+	}
 	log.Printf("Serving %s on %s:%d\n", directory, host, port)
-	log.Fatal(http.ListenAndServe(host+":"+strconv.Itoa(port), nil))
+	ip := fmt.Sprintf("http://%s:%d/", GetOutboundIP().String(), port)
+	config := qrterminal.Config{
+		Level:     qrterminal.L,
+		Writer:    os.Stdout,
+		BlackChar: qrterminal.WHITE,
+		WhiteChar: qrterminal.BLACK,
+	}
+	qrterminal.GenerateWithConfig(ip, config)
+	fmt.Printf("Scan QR code above or visit %s\nWaiting for connections...", ip)
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
