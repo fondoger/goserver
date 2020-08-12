@@ -116,13 +116,7 @@ func main() {
 	}
 	log.Printf("Serving %s on %s:%d\n", directory, host, port)
 	ip := fmt.Sprintf("http://%s:%d/", GetOutboundIP().String(), port)
-	config := qrterminal.Config{
-		Level:     qrterminal.L,
-		Writer:    os.Stdout,
-		BlackChar: qrterminal.WHITE,
-		WhiteChar: qrterminal.BLACK,
-	}
-	qrterminal.GenerateWithConfig(ip, config)
+  qrterminal.Generate(ip, qrterminal.M, os.Stdout)
 	fmt.Printf("Scan QR code above or visit %s\nWaiting for connections...", ip)
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
