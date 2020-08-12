@@ -65,6 +65,7 @@ func TryListenPort(addr string) error {
 	}
 	return ln.Close()
 }
+
 func isFlagPassed(name string) bool {
 	found := false
 	flag.Visit(func(f *flag.Flag) {
@@ -98,7 +99,7 @@ func main() {
 	}
 	directory := flag.Arg(0)
 	http.Handle("/", NoCache(http.FileServer(http.Dir(directory))))
-	ports := []int{80, 5000, 8000, 8001}
+	ports := []int{5000, 8000, 5001, 8001}
 	if port != -1 {
 		ports = []int{port}
 	}
@@ -114,9 +115,9 @@ func main() {
 			log.Fatal("port bind failed")
 		}
 	}
-	log.Printf("Serving %s on %s:%d\n", directory, host, port)
+	log.Printf("Serving %s on %s\n", directory, addr)
 	ip := fmt.Sprintf("http://%s:%d/", GetOutboundIP().String(), port)
-  qrterminal.Generate(ip, qrterminal.M, os.Stdout)
+	qrterminal.Generate(ip, qrterminal.M, os.Stdout)
 	fmt.Printf("Scan QR code above or visit %s\nWaiting for connections...", ip)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("%s:%d", host, port), nil))
 }
